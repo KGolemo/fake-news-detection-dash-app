@@ -1,74 +1,93 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import preprocessing_functions
 import dash
 from dash import html
 from dash import dcc
 from dash.dependencies import Input, Output, State
+import dash_bootstrap_components as dbc
+import preprocessing_functions
 import pandas as pd
 from joblib import load
-import plotly.graph_objects as go
-import plotly.express as px
 
-example = '''Norwegia była do niedawna rajem nie tylko dla Polaków szukających godziwego zarobku, ale i oazą wolności w czasach 
-kowidyzmu. Jednakże sataneria dobiera taktyki do mentalności konkretnego narodu. W związku z tym, że Norwedzy są 
-posłuszni rządowi z natury, to ze szczepieniami nie było problemu. Ponad 70% Norwegów uwierzyło propagandzie. Jaki 
-jest tego skutek? Teraz już nie mogą zganiać na antyszczepionkowców przy takim wskaźniku zakażeń. Jest to klęska idei 
-budowania odporności produktem mRNA. Brawo Polonia w Norwegii. Polonia nie zadźgana. Grypa Hiszpanka wraca tym razem 
-nazywana ponownie niesłusznie  bo wirusem z Wuhan. Podobnie jak 100 lat temu od dźgania umiera masa ludzi.
-'''
 
-app = dash.Dash()   #initialising dash app
+app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-colors = {
-    'background': '#FAFAFA',
-    'text': '#262626'
-}
+server = app.server
 
-app.layout = html.Div(style={'backgroundColor': colors['background']}, children=[
-    html.H1(
-        children='Wklej tekst i sprawdź jego wiarygodność!',
-        style={
-            'textAlign': 'center',
-            'color': colors['text']
-        }
-    ),
-    html.Hr(),
+######################################################################################################################
+# LAYOUT
+######################################################################################################################
 
-    html.Div(style={'textAlign': 'center'}, children=[
-        dcc.Textarea(
-            id='input_text',
-            value=example,
-            style={'width': '50%', 'height': 200}
-        ),
-        html.Br(),
-        # html.Button('Lematyzuj:', id='lem_button'),
-        # html.Div(id='lem_text'),
-
-        html.Button('Weryfikuj', id='ver_button'),
+app.layout = dbc.Container(
+    [
+        dcc.Store(id="store"),
         html.Hr(),
-    ]),
+        html.H2('Rozpoznawanie tzw. "fake newsów" dotyczących koronawirusa',
+                style={'textAlign': 'center'}),
+        html.Hr(),
+        html.Br(),
 
-    html.Table([
-        html.Tr([html.Td(['Klasyfikator NB:']), html.Td(id='NB')]),
-        html.Tr([html.Td(['Klasyfikator SVC:']), html.Td(id='SVC')]),
-        html.Tr([html.Td(['Klasyfikator RF:']), html.Td(id='RF')])
+        html.Div(children=[
+            dbc.Textarea(id='input_text',
+                         className="mb-3",
+                         placeholder="Tutaj wklej treść wiadomości do zweryfikowania",
+                         rows=10),
+        ],
+            style={'textAlign': 'center'}
+        ),
 
-    ], style={'font-size': 26})
-])
+        dbc.Button(
+                "Weryfikuj",
+                id="ver_button",
+                color="primary",
+                className="d-grid gap-2 col-6 mx-auto",
+                n_clicks=0
+        ),
+
+        html.Br(),
+
+        dbc.Alert(children=[
+                html.H4("Werdykt:", className="alert-heading"),
+                html.H2(id='verdict'),
+                html.Hr(),
+                html.P('Predykcje poszczególnych klasyfikatorów (True - wiadomość prawdziwa, False - fałszywa):'),
+                dbc.Table(
+                    [
+                        html.Thead(html.Tr([html.Th("Algorytm"), html.Th("Predykcja")]))
+                    ] + [html.Tbody([html.Tr([html.Td("Naiwny klasyfikator bayesowski"), html.Td(id="NB")]),
+                                     html.Tr([html.Td("Liniowa maszyna wektorów nośnych"), html.Td(id="SVC")]),
+                                     html.Tr([html.Td("Las losowy"), html.Td(id="RF")])])],
+                    bordered=True,
+                    dark=False,
+                    hover=False,
+                    responsive=False,
+                    striped=True,
+                    # style={'width': '0%'
+                )
+            ],
+            color="secondary"
+        ),
+    ]
+)
+
+
+######################################################################################################################
+# CALLBACKS
+######################################################################################################################
 
 
 @app.callback(
     [
+        Output(component_id='verdict', component_property='children'),
         Output(component_id='NB', component_property='children'),
         Output(component_id='SVC', component_property='children'),
         Output(component_id='RF', component_property='children')
     ],
     Input(component_id='ver_button', component_property='n_clicks'),
-    State(component_id='input_text', component_property='value')
+    State(component_id='input_text', component_property='value'),
 )
-def verify_text(n_clicks, text):
+def get_predictions(n_clicks, text):
     if n_clicks is not None:
         df = pd.DataFrame([[text]], columns=['Text'])
 
@@ -78,7 +97,6 @@ def verify_text(n_clicks, text):
         df['Text'] = df['Text'].apply(preprocessing_functions.lowercase_all)
         df['Text'] = df['Text'].apply(preprocessing_functions.tokenize)
         df['Text'] = df['Text'].apply(preprocessing_functions.delete_stop_words)
-
         df = preprocessing_functions.lemmatize(df)
 
         tfidf_vectorizer = load('tfidf.joblib')
@@ -88,15 +106,19 @@ def verify_text(n_clicks, text):
         svc_classifier = load('svc_classifier.joblib')
         rf_classifier = load('rf_classifier.joblib')
 
-        nb_result = str(nb_classifier.predict(tfidf_input)[0])
-        svc_result = str(svc_classifier.predict(tfidf_input)[0])
-        rf_result = str(rf_classifier.predict(tfidf_input)[0])
+        nb_result = nb_classifier.predict(tfidf_input)[0]
+        svc_result = svc_classifier.predict(tfidf_input)[0]
+        rf_result = rf_classifier.predict(tfidf_input)[0]
 
-        return nb_result, svc_result, rf_result
+        if not (nb_result and svc_result and rf_result):
+            verdict = 'To prawdopobodnie fałszywa informacja'
+        else:
+            verdict = 'To prawdopobodnie prawdziwa informacja'
+
+        return verdict, str(nb_result), str(svc_result), str(rf_result)
     else:
-        return '', '', ''
+        return '?', '?', '?', '?'
 
 
 if __name__ == '__main__':
-    app.run_server()
-
+    app.run_server(debug=False)
