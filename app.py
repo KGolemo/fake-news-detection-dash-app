@@ -5,32 +5,19 @@ import preprocessing_functions
 import dash
 from dash import html
 from dash import dcc
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
+import pandas as pd
+from joblib import load
 import plotly.graph_objects as go
 import plotly.express as px
 
 example = '''
-Najnowsze dane z raportu brytyjskiej Agencji Bezpieczeństwa Zdrowia 
-(UKHSA) jak i Public Health Scotland, instytucji nadzorujących szczepienia 
-przeciwko COVID-19 pokazują, że stosunek umieralności z powodu koronawirusa z 
-Wuhan jest, jak jedna osoba „niezaszczepiona” do prawie pięć osób „w pełni 
-zaszczepionych”. Z podanych informacji widać, że zdecydowana większość 
-zgłoszonych zgonów ​​ma miejsce po otrzymaniu zastrzyków. Te informacje są 
-wyraźnie sprzeczne z podawanymi przez producentów szczepionek, o ich rzekomej 
-ich skuteczności i 90% wskaźniku zapobiegania śmiertelności, jak i 
-rozpowszechnianą propagandą przez media i rządy poszczególnych państw. W związku 
-z zaistniałą sytuacją angielskie media The Exposé zadały pytanie: „Jeśli 
-zastrzyk Covid ma być w 90% skuteczny w zapobieganiu śmierci, dlaczego 
-„zaszczepieni” ludzie obecnie umierają w stosunku 4,8:1 do „nieszczepionych” 
-osób?”
-
-Wniosek – UKHSA kłamie publicznie twierdząc, że szczepionki ratują życie, co 
-jest sprzeczne z tym, co mówią podawane przez nich dane. Kłamią również inne 
-instytucje, media jak i rządy promujące ten specyfik. Korzystając z danych VSR 
-(Vaccine Surveillance Report) zebranych przez okres trzech miesięcy, The Exposé 
-odkrył, że nie tylko odporność ludzi po zaszczepieniu na wrażego chińskiego 
-wirusa spadła, ale również wyjątkowo szybko zanika odporność, która rzekomo 
-jest wytwarzana ludiom przez te zastrzyki.
+Norwegia była do niedawna rajem nie tylko dla Polaków szukających godziwego zarobku, ale i oazą wolności w czasach 
+kowidyzmu. Jednakże sataneria dobiera taktyki do mentalności konkretnego narodu. W związku z tym, że Norwedzy są 
+posłuszni rządowi z natury, to ze szczepieniami nie było problemu. Ponad 70% Norwegów uwierzyło propagandzie. Jaki 
+jest tego skutek? Teraz już nie mogą zganiać na antyszczepionkowców przy takim wskaźniku zakażeń. Jest to klęska idei 
+budowania odporności produktem mRNA. Brawo Polonia w Norwegii. Polonia nie zadźgana. Grypa Hiszpanka wraca tym razem 
+nazywana ponownie niesłusznie  bo wirusem z Wuhan. Podobnie jak 100 lat temu od dźgania umiera masa ludzi.
 '''
 
 app = dash.Dash()   #initialising dash app
@@ -59,6 +46,44 @@ app.layout = html.Div([
     ]),
 
 ])
+
+
+@app.callback(
+    [
+        Output(component_id='NB', component_property='children'),
+        Output(component_id='SVC', component_property='children'),
+        Output(component_id='RF', component_property='children')
+    ],
+    Input(component_id='ver_button', component_property='n_clicks'),
+    State(component_id='input_text', component_property='value')
+)
+def verificate_text(n_clicks, text):
+    if n_clicks is not None:
+        df = pd.DataFrame([[text]], columns=['Text'])
+
+        df['Text'] = df['Text'].apply(preprocessing_functions.delete_escape_chars)
+        df['Text'] = df['Text'].apply(preprocessing_functions.strip_non_polish)
+        df['Text'] = df['Text'].apply(preprocessing_functions.replace_whitespace)
+        df['Text'] = df['Text'].apply(preprocessing_functions.lowercase_all)
+        df['Text'] = df['Text'].apply(preprocessing_functions.tokenize)
+        df['Text'] = df['Text'].apply(preprocessing_functions.delete_stop_words)
+
+        df = preprocessing_functions.lemmatize(df)
+
+        tfidf_vectorizer = load('tfidf.joblib')
+        tfidf_input = tfidf_vectorizer.transform(df['Text'])
+
+        nb_classifier = load('nb_classifier.joblib')
+        svc_classifier = load('svc_classifier.joblib')
+        rf_classifier = load('rf_classifier.joblib')
+
+        nb_result = str(nb_classifier.predict(tfidf_input)[0])
+        svc_result = str(svc_classifier.predict(tfidf_input)[0])
+        rf_result = str(rf_classifier.predict(tfidf_input)[0])
+
+        return nb_result, svc_result, rf_result
+    else:
+        return '', '', ''
 
 
 if __name__ == '__main__':
