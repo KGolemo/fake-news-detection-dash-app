@@ -2,13 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import pandas as pd
-from polyglot.detect import Detector
-from polyglot.downloader import downloader
+from langdetect import detect
 import re
 import morfeusz2
 from typing import List
-
-downloader.download('LANG:pl')
 
 
 def drop_title_and_url(df: pd.DataFrame) -> pd.DataFrame:
@@ -48,9 +45,8 @@ def drop_non_polish(df: pd.DataFrame) -> pd.DataFrame:
     """
     for index, row in df.iterrows():
         text = row['Text']
-        detector = Detector(text, quiet=True)
-        if not (detector.language.name == 'Polish' and
-                detector.language.confidence >= 70):
+        lang = detect(text)
+        if lang != 'pl':
             df.drop([index], inplace=True)
     df.reset_index(drop=True, inplace=True)
     return df
