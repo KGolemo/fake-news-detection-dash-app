@@ -11,8 +11,7 @@ from joblib import load
 import plotly.graph_objects as go
 import plotly.express as px
 
-example = '''
-Norwegia była do niedawna rajem nie tylko dla Polaków szukających godziwego zarobku, ale i oazą wolności w czasach 
+example = '''Norwegia była do niedawna rajem nie tylko dla Polaków szukających godziwego zarobku, ale i oazą wolności w czasach 
 kowidyzmu. Jednakże sataneria dobiera taktyki do mentalności konkretnego narodu. W związku z tym, że Norwedzy są 
 posłuszni rządowi z natury, to ze szczepieniami nie było problemu. Ponad 70% Norwegów uwierzyło propagandzie. Jaki 
 jest tego skutek? Teraz już nie mogą zganiać na antyszczepionkowców przy takim wskaźniku zakażeń. Jest to klęska idei 
@@ -22,29 +21,41 @@ nazywana ponownie niesłusznie  bo wirusem z Wuhan. Podobnie jak 100 lat temu od
 
 app = dash.Dash()   #initialising dash app
 
-app.layout = html.Div([
-    html.H1('Wklej tekst i sprawdź jego wiarygodność!'),
+colors = {
+    'background': '#FAFAFA',
+    'text': '#262626'
+}
+
+app.layout = html.Div(style={'backgroundColor': colors['background']}, children=[
+    html.H1(
+        children='Wklej tekst i sprawdź jego wiarygodność!',
+        style={
+            'textAlign': 'center',
+            'color': colors['text']
+        }
+    ),
     html.Hr(),
 
-    html.Div([
+    html.Div(style={'textAlign': 'center'}, children=[
         dcc.Textarea(
             id='input_text',
             value=example,
-            style={'width': '100%', 'height': 200}
+            style={'width': '50%', 'height': 200}
         ),
         html.Br(),
         # html.Button('Lematyzuj:', id='lem_button'),
         # html.Div(id='lem_text'),
 
         html.Button('Weryfikuj', id='ver_button'),
-        html.Table([
-            html.Tr([html.Td(['Klasyfikator NB:']), html.Td(id='NB')]),
-            html.Tr([html.Td(['Klasyfikator SVC:']), html.Td(id='SVC')]),
-            html.Tr([html.Td(['Klasyfikator RF:']), html.Td(id='RF')])
-
-        ], style={'font-size': 26})
+        html.Hr(),
     ]),
 
+    html.Table([
+        html.Tr([html.Td(['Klasyfikator NB:']), html.Td(id='NB')]),
+        html.Tr([html.Td(['Klasyfikator SVC:']), html.Td(id='SVC')]),
+        html.Tr([html.Td(['Klasyfikator RF:']), html.Td(id='RF')])
+
+    ], style={'font-size': 26})
 ])
 
 
@@ -57,7 +68,7 @@ app.layout = html.Div([
     Input(component_id='ver_button', component_property='n_clicks'),
     State(component_id='input_text', component_property='value')
 )
-def verificate_text(n_clicks, text):
+def verify_text(n_clicks, text):
     if n_clicks is not None:
         df = pd.DataFrame([[text]], columns=['Text'])
 
